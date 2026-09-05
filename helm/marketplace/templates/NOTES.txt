@@ -1,0 +1,15 @@
+{{ .Chart.Name }} deployed to the {{ .Values.environment }} environment (namespace {{ .Release.Namespace }}).
+
+  Frontend  https://{{ .Values.ingress.hosts.app }}
+  API       https://{{ .Values.ingress.hosts.api }}
+
+Images now running:
+  backend   {{ include "marketplace.image" (dict "root" . "component" .Values.backend) }}
+  frontend  {{ include "marketplace.image" (dict "root" . "component" .Values.frontend) }}
+
+Check rollout status:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "marketplace.fullname" . }}-backend
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "marketplace.fullname" . }}-frontend
+
+TLS certificates are issued by cert-manager via the {{ .Values.ingress.clusterIssuer }} ClusterIssuer:
+  kubectl -n {{ .Release.Namespace }} get certificate

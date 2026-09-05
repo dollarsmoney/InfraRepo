@@ -1,0 +1,21 @@
+environment: demo
+
+backend:
+  image:
+    tag: latest
+  replicaCount: 2
+
+frontend:
+  image:
+    tag: latest
+  replicaCount: 2
+
+config:
+  NODE_ENV: production
+  SUPABASE_URL: https://your-demo-project.supabase.co
+
+ingress:
+  clusterIssuer: letsencrypt-production
+  hosts:
+    app: app.demo.example.com
+    api: api.demo.example.com

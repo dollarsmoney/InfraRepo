@@ -1,0 +1,11 @@
+# Never commit cluster credentials or rendered secrets
+kubeconfig
+*.kubeconfig
+.env
+.env.*
+*-secret.yaml
+secrets.yaml
+
+charts/
+*.tgz
+.DS_Store

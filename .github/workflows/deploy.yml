@@ -1,0 +1,88 @@
+name: Deploy
+
+# The application repo's CI writes an image tag into helm/marketplace/values-<env>.yaml.
+# That commit lands here and triggers the matching environment below. GHCR only
+# stores the images; this workflow is what actually deploys them.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'helm/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        required: true
+        type: choice
+        options: [dev, demo, production]
+      image_tag:
+        description: Image tag to deploy (blank = whatever is in the values file)
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    name: Detect changed environments
+    runs-on: ubuntu-latest
+    outputs:
+      dev: ${{ steps.filter.outputs.dev }}
+      demo: ${{ steps.filter.outputs.demo }}
+      production: ${{ steps.filter.outputs.production }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            dev:
+              - 'helm/marketplace/values-dev.yaml'
+              - 'helm/marketplace/templates/**'
+              - 'helm/marketplace/values.yaml'
+              - 'helm/marketplace/Chart.yaml'
+            demo:
+              - 'helm/marketplace/values-demo.yaml'
+              - 'helm/marketplace/templates/**'
+              - 'helm/marketplace/values.yaml'
+              - 'helm/marketplace/Chart.yaml'
+            production:
+              - 'helm/marketplace/values-production.yaml'
+              - 'helm/marketplace/templates/**'
+              - 'helm/marketplace/values.yaml'
+              - 'helm/marketplace/Chart.yaml'
+
+  dev:
+    needs: changes
+    if: |
+      (github.event_name == 'push' && needs.changes.outputs.dev == 'true') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev')
+    uses: ./.github/workflows/helm-deploy.yml
+    with:
+      environment: dev
+      image_tag: ${{ inputs.image_tag || '' }}
+    secrets: inherit
+
+  demo:
+    needs: changes
+    if: |
+      (github.event_name == 'push' && needs.changes.outputs.demo == 'true') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'demo')
+    uses: ./.github/workflows/helm-deploy.yml
+    with:
+      environment: demo
+      image_tag: ${{ inputs.image_tag || '' }}
+    secrets: inherit
+
+  production:
+    needs: changes
+    if: |
+      (github.event_name == 'push' && needs.changes.outputs.production == 'true') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    uses: ./.github/workflows/helm-deploy.yml
+    with:
+      environment: production
+      image_tag: ${{ inputs.image_tag || '' }}
+    secrets: inherit

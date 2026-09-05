@@ -1,0 +1,46 @@
+environment: production
+
+backend:
+  image:
+    tag: latest
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+frontend:
+  image:
+    tag: latest
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+config:
+  NODE_ENV: production
+  SUPABASE_URL: https://your-production-project.supabase.co
+
+ingress:
+  clusterIssuer: letsencrypt-production
+  hosts:
+    app: app.example.com
+    api: api.example.com
+
+# Spread replicas across nodes so a single node failure cannot take the app down.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: marketplace

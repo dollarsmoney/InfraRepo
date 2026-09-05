@@ -1,0 +1,115 @@
+# Defaults shared by every environment. Each values-<env>.yaml overrides the
+# image tags, host names, replica counts and resource sizing.
+
+nameOverride: ''
+fullnameOverride: ''
+
+# Set per environment; also used to label resources.
+environment: dev
+
+image:
+  registry: ghcr.io
+  pullPolicy: IfNotPresent
+  # Created by the CD workflow from a GitHub PAT with read:packages.
+  pullSecret: ghcr-credentials
+
+backend:
+  image:
+    repository: dollarsmoney/notion-backend
+    # Written by the application repo's CI on every push. Do not edit by hand.
+    tag: latest
+  replicaCount: 2
+  containerPort: 4000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  livenessProbe:
+    path: /healthz
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readinessProbe:
+    path: /readyz
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+frontend:
+  image:
+    repository: dollarsmoney/notion-frontend
+    tag: latest
+  replicaCount: 2
+  containerPort: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  livenessProbe:
+    path: /api/health
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readinessProbe:
+    path: /api/health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Non-sensitive configuration. Rendered into a ConfigMap.
+config:
+  NODE_ENV: production
+  CURRENCY: NGN
+  # Public Supabase project URL; the keys live in the Secret.
+  SUPABASE_URL: ''
+
+# Sensitive values are NEVER stored here. The CD workflow creates this Secret
+# from GitHub Environment secrets before running helm upgrade. Expected keys:
+#   SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, PAYSTACK_SECRET_KEY
+secret:
+  existingSecret: marketplace-secrets
+
+ingress:
+  enabled: true
+  className: nginx
+  # cert-manager watches this annotation and issues the TLS certificate.
+  clusterIssuer: letsencrypt-staging
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 5m
+  hosts:
+    app: app.dev.example.com
+    api: api.dev.example.com
+
+serviceAccount:
+  create: true
+  name: ''
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  privileged: false
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

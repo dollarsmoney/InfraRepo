@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "marketplace.configMapName" . }}
+  labels:
+    {{- include "marketplace.labels" . | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.config.NODE_ENV | quote }}
+  CURRENCY: {{ .Values.config.CURRENCY | quote }}
+  SUPABASE_URL: {{ .Values.config.SUPABASE_URL | quote }}
+  NEXT_PUBLIC_SUPABASE_URL: {{ .Values.config.SUPABASE_URL | quote }}
+  FRONTEND_URL: {{ printf "https://%s" .Values.ingress.hosts.app | quote }}
+  CORS_ORIGINS: {{ printf "https://%s" .Values.ingress.hosts.app | quote }}
+  NEXT_PUBLIC_API_URL: {{ printf "https://%s" .Values.ingress.hosts.api | quote }}

@@ -1,0 +1,91 @@
+name: Helm deploy
+
+# Reusable job that deploys one environment. Each environment is a separate
+# cluster, selected by that environment's KUBE_CONFIG secret.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      image_tag:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    # Approval gates for demo and production are configured on the GitHub
+    # Environment itself (Settings -> Environments -> Required reviewers).
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Configure cluster access
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          kubectl cluster-info
+
+      - name: Ensure namespace
+        run: kubectl apply -f "namespaces/${{ inputs.environment }}.yaml"
+
+      - name: Create GHCR pull secret
+        env:
+          NAMESPACE: ${{ inputs.environment }}
+        run: |
+          kubectl -n "$NAMESPACE" create secret docker-registry ghcr-credentials \
+            --docker-server=ghcr.io \
+            --docker-username='${{ secrets.GHCR_USERNAME }}' \
+            --docker-password='${{ secrets.GHCR_TOKEN }}' \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # Application secrets live only in GitHub Environment secrets and in the
+      # cluster. They are never written to this repository.
+      - name: Create application secret
+        env:
+          NAMESPACE: ${{ inputs.environment }}
+        run: |
+          kubectl -n "$NAMESPACE" create secret generic marketplace-secrets \
+            --from-literal=SUPABASE_ANON_KEY='${{ secrets.SUPABASE_ANON_KEY }}' \
+            --from-literal=SUPABASE_SERVICE_ROLE_KEY='${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}' \
+            --from-literal=PAYSTACK_SECRET_KEY='${{ secrets.PAYSTACK_SECRET_KEY }}' \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Helm upgrade
+        env:
+          NAMESPACE: ${{ inputs.environment }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          EXTRA=()
+          # A manual dispatch may override the tag recorded in the values file.
+          if [ -n "$IMAGE_TAG" ]; then
+            EXTRA+=(--set "backend.image.tag=$IMAGE_TAG" --set "frontend.image.tag=$IMAGE_TAG")
+          fi
+
+          helm upgrade --install marketplace ./helm/marketplace \
+            --namespace "$NAMESPACE" \
+            -f ./helm/marketplace/values.yaml \
+            -f "./helm/marketplace/values-${NAMESPACE}.yaml" \
+            --atomic --wait --timeout 5m \
+            "${EXTRA[@]}"
+
+      - name: Report deployed images
+        env:
+          NAMESPACE: ${{ inputs.environment }}
+        run: |
+          kubectl -n "$NAMESPACE" get deploy -o \
+            custom-columns='NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image,READY:.status.readyReplicas'

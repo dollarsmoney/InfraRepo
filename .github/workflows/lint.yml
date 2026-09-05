@@ -1,0 +1,38 @@
+name: Lint chart
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - run: helm lint ./helm/marketplace
+
+      # Rendering every environment catches a broken template or a missing
+      # value before it can reach a cluster.
+      - name: Render each environment
+        run: |
+          for env in dev demo production; do
+            echo "--- $env"
+            helm template marketplace ./helm/marketplace \
+              -f ./helm/marketplace/values.yaml \
+              -f "./helm/marketplace/values-${env}.yaml" \
+              --namespace "$env" > /dev/null
+          done
+
+      - name: Check no secret values are committed
+        run: |
+          if grep -rEn 'sk_(live|test)_[A-Za-z0-9]|service_role|SUPABASE_SERVICE_ROLE_KEY: *[^"'"'"' ]' \
+             --include='*.yaml' --include='*.yml' helm/ cert-manager/ namespaces/; then
+            echo "::error::A secret-looking value is committed to the infrastructure repo"
+            exit 1
+          fi
