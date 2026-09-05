@@ -1,8 +1,7 @@
 environment: dev
-
 backend:
   image:
-    tag: latest
+    tag: sha-19c2158
   replicaCount: 1
   resources:
     requests:
@@ -11,10 +10,9 @@ backend:
     limits:
       cpu: 300m
       memory: 384Mi
-
 frontend:
   image:
-    tag: latest
+    tag: sha-19c2158
   replicaCount: 1
   resources:
     requests:
@@ -23,11 +21,9 @@ frontend:
     limits:
       cpu: 300m
       memory: 384Mi
-
 config:
   NODE_ENV: production
   SUPABASE_URL: https://your-dev-project.supabase.co
-
 ingress:
   # Staging issuer avoids burning the Let's Encrypt production rate limit.
   clusterIssuer: letsencrypt-staging
