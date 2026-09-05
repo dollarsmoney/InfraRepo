@@ -9,7 +9,7 @@ frontend:
   replicaCount: 2
 config:
   NODE_ENV: production
-  SUPABASE_URL: https://your-demo-project.supabase.co
+  SUPABASE_URL: https://gwwasgxuhoeowhswqooj.supabase.co
 ingress:
   clusterIssuer: letsencrypt-production
   hosts:

@@ -23,7 +23,7 @@ frontend:
       memory: 384Mi
 config:
   NODE_ENV: production
-  SUPABASE_URL: https://your-dev-project.supabase.co
+  SUPABASE_URL: https://gwwasgxuhoeowhswqooj.supabase.co
 ingress:
   # Staging issuer avoids burning the Let's Encrypt production rate limit.
   clusterIssuer: letsencrypt-staging
