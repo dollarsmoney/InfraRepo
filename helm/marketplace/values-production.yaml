@@ -31,8 +31,8 @@ config:
 ingress:
   clusterIssuer: letsencrypt-production
   hosts:
-    app: app.example.com
-    api: api.example.com
+    app: kmdndd.name.ng
+    api: api.kmdndd.name.ng
 
 # Spread replicas across nodes so a single node failure cannot take the app down.
 affinity:

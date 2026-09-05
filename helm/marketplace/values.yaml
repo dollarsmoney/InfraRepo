@@ -87,8 +87,8 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: 5m
   hosts:
-    app: app.dev.example.com
-    api: api.dev.example.com
+    app: dev.kmdndd.name.ng
+    api: api.dev.kmdndd.name.ng
 
 serviceAccount:
   create: true

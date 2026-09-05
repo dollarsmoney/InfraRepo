@@ -91,9 +91,35 @@ kubectl config use-context <your-context>
 ```
 
 That installs ingress-nginx and cert-manager, applies both ClusterIssuers and
-creates the namespace. It prints the ingress controller's external IP — create
-`A` records for `app.<env>.example.com` and `api.<env>.example.com` pointing at
-it before the first deploy, or certificate issuance will fail.
+creates the namespace. It prints the ingress controller's external IP.
+
+Create these `A` records pointing at that IP **before** the first deploy —
+cert-manager solves an HTTP-01 challenge over port 80, so issuance fails if the
+name does not already resolve to the ingress controller:
+
+| Environment | Record | Serves |
+| --- | --- | --- |
+| dev | `dev.kmdndd.name.ng` | frontend |
+| dev | `api.dev.kmdndd.name.ng` | API |
+| demo | `demo.kmdndd.name.ng` | frontend |
+| demo | `api.demo.kmdndd.name.ng` | API |
+| production | `kmdndd.name.ng` (apex) | frontend |
+| production | `api.kmdndd.name.ng` | API |
+
+Each environment is a separate cluster with its own ingress IP, so the records
+point at three different addresses.
+
+Production uses the apex `kmdndd.name.ng`, which needs an `A` record — a plain
+`CNAME` is not valid at the apex. That works when ingress-nginx is given a
+LoadBalancer with an IP address. If your provider hands out a DNS hostname
+instead of an IP, either use your DNS provider's `ALIAS`/`ANAME` record type, or
+change `ingress.hosts.app` in `values-production.yaml` to `www.kmdndd.name.ng`
+and `CNAME` that instead.
+
+`name.ng` is a public suffix, so `kmdndd.name.ng` counts as its own registered
+domain for Let's Encrypt rate limiting — the six names above share one bucket of
+50 certificates per week, which is ample. Dev still uses the staging issuer so
+repeated teardowns cannot exhaust it.
 
 Application secrets are **not** created by this script. The deploy workflow
 creates them from GitHub Environment secrets on every run.

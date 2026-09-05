@@ -17,5 +17,5 @@ config:
 ingress:
   clusterIssuer: letsencrypt-production
   hosts:
-    app: app.demo.example.com
-    api: api.demo.example.com
+    app: demo.kmdndd.name.ng
+    api: api.demo.kmdndd.name.ng
