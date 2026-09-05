@@ -31,6 +31,31 @@ jobs:
         with:
           version: v3.16.2
 
+      # Report every missing secret at once. Without this the job fails later
+      # with an unrelated-looking error -- an unset KUBE_CONFIG just yields an
+      # empty kubeconfig, and kubectl then reports "connection to localhost:8080
+      # refused" rather than saying the secret is absent.
+      - name: Check required secrets
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PAYSTACK_SECRET_KEY: ${{ secrets.PAYSTACK_SECRET_KEY }}
+        run: |
+          missing=()
+          for name in KUBE_CONFIG GHCR_USERNAME GHCR_TOKEN \
+                      SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY PAYSTACK_SECRET_KEY; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing secrets on the '${{ inputs.environment }}' environment: ${missing[*]}"
+            echo "Set them under Settings -> Environments -> ${{ inputs.environment }}."
+            echo "KUBE_CONFIG comes from: terraform output -json kubeconfigs | jq -r .${{ inputs.environment }}"
+            exit 1
+          fi
+
       # This secret is the only thing that decides which cluster and namespace
       # this job deploys to. Terraform generates it (see terraform/outputs.tf).
       - name: Configure cluster access
@@ -39,7 +64,10 @@ jobs:
           NAMESPACE: ${{ inputs.environment }}
         run: |
           mkdir -p "$HOME/.kube"
-          echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
+          if ! echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config" 2>/dev/null; then
+            echo "::error::KUBE_CONFIG is not valid base64. Store the output of 'terraform output -json kubeconfigs | jq -r .${NAMESPACE}' verbatim."
+            exit 1
+          fi
           chmod 600 "$HOME/.kube/config"
           # The credential is scoped to one namespace, so cluster-wide checks
           # such as `kubectl cluster-info` are correctly forbidden.
