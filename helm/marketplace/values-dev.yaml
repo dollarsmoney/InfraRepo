@@ -1,7 +1,7 @@
 environment: dev
 backend:
   image:
-    tag: sha-19c2158
+    tag: sha-bbc7ae1
   replicaCount: 1
   resources:
     requests:
@@ -12,7 +12,7 @@ backend:
       memory: 384Mi
 frontend:
   image:
-    tag: sha-19c2158
+    tag: sha-bbc7ae1
   replicaCount: 1
   resources:
     requests:
