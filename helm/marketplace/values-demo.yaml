@@ -1,19 +1,15 @@
 environment: demo
-
 backend:
   image:
-    tag: latest
+    tag: sha-19c2158
   replicaCount: 2
-
 frontend:
   image:
-    tag: latest
+    tag: sha-19c2158
   replicaCount: 2
-
 config:
   NODE_ENV: production
   SUPABASE_URL: https://your-demo-project.supabase.co
-
 ingress:
   clusterIssuer: letsencrypt-production
   hosts:
