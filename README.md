@@ -67,62 +67,65 @@ marketplace-infra/
 │       ├── services.yaml             ingress.yaml
 │       ├── configmap.yaml            serviceaccount.yaml
 │       └── _helpers.tpl              NOTES.txt
-├── cert-manager/                  Let's Encrypt ClusterIssuers
-├── namespaces/                    dev, demo, production
-├── scripts/bootstrap-cluster.sh   one-time per-cluster setup
+├── cert-manager/                  Let's Encrypt ClusterIssuers (reference copies)
+├── namespaces/                    namespace manifests (reference copies)
+├── terraform/                     DOKS cluster, platform components, DNS, CD credentials
 └── .github/workflows/
-    ├── lint.yml                   helm lint + template on every PR
+    ├── lint.yml                   helm lint/template + terraform fmt/validate
     ├── deploy.yml                 picks the environment
     └── helm-deploy.yml            reusable deploy job
 ```
 
-Each environment is a **separate cluster**, selected by that environment's
-`KUBE_CONFIG` secret.
+One DigitalOcean cluster hosts all three environments as namespaces. They are
+separated by RBAC: each `KUBE_CONFIG` is backed by a ServiceAccount that can act
+in **one** namespace only, so a leaked dev credential cannot touch production.
+
+Terraform applies the `cert-manager/` and `namespaces/` manifests itself; the
+files are kept as readable reference and for applying by hand if needed.
 
 ---
 
 ## First-time cluster setup
 
-Run once per cluster, with kubectl pointed at it:
+Everything is provisioned by Terraform — see
+[terraform/README.md](terraform/README.md) for the full procedure.
 
 ```bash
-kubectl config use-context <your-context>
-./scripts/bootstrap-cluster.sh dev
+export DIGITALOCEAN_TOKEN=dop_v1_...
+cd terraform && terraform init && terraform apply
 ```
 
-That installs ingress-nginx and cert-manager, applies both ClusterIssuers and
-creates the namespace. It prints the ingress controller's external IP.
+That creates the cluster, installs ingress-nginx and cert-manager, applies both
+ClusterIssuers, creates the three namespaces with their scoped deploy
+credentials, and — because the domain is delegated to DigitalOcean — creates
+every DNS record automatically:
 
-Create these `A` records pointing at that IP **before** the first deploy —
-cert-manager solves an HTTP-01 challenge over port 80, so issuance fails if the
-name does not already resolve to the ingress controller:
-
-| Environment | Record | Serves |
+| Record | Serves | Environment |
 | --- | --- | --- |
-| dev | `dev.kmdndd.name.ng` | frontend |
-| dev | `api.dev.kmdndd.name.ng` | API |
-| demo | `demo.kmdndd.name.ng` | frontend |
-| demo | `api.demo.kmdndd.name.ng` | API |
-| production | `kmdndd.name.ng` (apex) | frontend |
-| production | `api.kmdndd.name.ng` | API |
+| `kmdndd.name.ng` (apex) | frontend | production |
+| `api.kmdndd.name.ng` | API | production |
+| `demo.kmdndd.name.ng` | frontend | demo |
+| `api.demo.kmdndd.name.ng` | API | demo |
+| `dev.kmdndd.name.ng` | frontend | dev |
+| `api.dev.kmdndd.name.ng` | API | dev |
 
-Each environment is a separate cluster with its own ingress IP, so the records
-point at three different addresses.
+All six are `A` records pointing at the single ingress load balancer, created
+only after Terraform has waited for DigitalOcean to assign its IP. That ordering
+matters: cert-manager solves an HTTP-01 challenge over port 80, so a name that
+does not yet resolve to the ingress controller cannot be issued a certificate.
 
-Production uses the apex `kmdndd.name.ng`, which needs an `A` record — a plain
-`CNAME` is not valid at the apex. That works when ingress-nginx is given a
-LoadBalancer with an IP address. If your provider hands out a DNS hostname
-instead of an IP, either use your DNS provider's `ALIAS`/`ANAME` record type, or
-change `ingress.hosts.app` in `values-production.yaml` to `www.kmdndd.name.ng`
-and `CNAME` that instead.
+The one manual step is delegation — set the nameservers for `kmdndd.name.ng` to
+`ns1`, `ns2` and `ns3.digitalocean.com` at your `.ng` registrar. Set
+`manage_dns = false` if you would rather keep DNS elsewhere and point the records
+at `terraform output ingress_ip` yourself.
 
 `name.ng` is a public suffix, so `kmdndd.name.ng` counts as its own registered
-domain for Let's Encrypt rate limiting — the six names above share one bucket of
-50 certificates per week, which is ample. Dev still uses the staging issuer so
-repeated teardowns cannot exhaust it.
+domain for Let's Encrypt rate limiting — the six names share one bucket of 50
+certificates per week, which is ample. Dev uses the staging issuer so repeated
+teardowns cannot exhaust it.
 
-Application secrets are **not** created by this script. The deploy workflow
-creates them from GitHub Environment secrets on every run.
+Application secrets are **not** created by Terraform. The deploy workflow creates
+them from GitHub Environment secrets on every run.
 
 ---
 
@@ -148,15 +151,33 @@ and set in each:
 
 | Secret | Value |
 | --- | --- |
-| `KUBE_CONFIG` | base64 of that cluster's kubeconfig — `base64 -w0 ~/.kube/config` |
+| `KUBE_CONFIG` | `terraform output -json kubeconfigs \| jq -r .<env>` — already base64, already scoped to that namespace |
 | `SUPABASE_ANON_KEY` | that environment's Supabase anon / publishable key |
 | `SUPABASE_SERVICE_ROLE_KEY` | that environment's Supabase service role key |
 | `PAYSTACK_SECRET_KEY` | Paystack secret key (test keys for dev and demo) |
 | `GHCR_USERNAME` | GitHub username or bot account |
 | `GHCR_TOKEN` | PAT with `read:packages`, used for the image pull secret |
 
-Use a dedicated kubeconfig backed by a service account scoped to the target
-namespace rather than a cluster-admin credential.
+### How CD reaches the cluster
+
+`KUBE_CONFIG` is the entire link between this repository and Kubernetes.
+`helm-deploy.yml` declares `environment: ${{ inputs.environment }}`, which makes
+GitHub inject that environment's secrets; the job decodes `KUBE_CONFIG` into
+`~/.kube/config`, and every `kubectl` and `helm` command after that targets
+whatever it points at. Change the secret and the same chart lands somewhere else.
+
+Terraform generates these, each backed by a ServiceAccount token that **does not
+expire**. Do not substitute the kubeconfig DigitalOcean issues natively — its
+token expires after seven days, and CD would start failing a week after setup
+with no other change.
+
+To confirm the scoping is real:
+
+```bash
+terraform output -json kubeconfigs | jq -r .dev | base64 -d > /tmp/dev.kubeconfig
+KUBECONFIG=/tmp/dev.kubeconfig kubectl -n dev get pods          # works
+KUBECONFIG=/tmp/dev.kubeconfig kubectl -n production get pods   # Forbidden
+```
 
 ---
 

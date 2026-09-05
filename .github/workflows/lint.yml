@@ -1,4 +1,4 @@
-name: Lint chart
+name: Lint
 
 on:
   pull_request:
@@ -29,10 +29,43 @@ jobs:
               --namespace "$env" > /dev/null
           done
 
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.8
+
+      - run: terraform fmt -check -recursive
+
+      # No DigitalOcean token is needed: init without a backend and validate
+      # only checks syntax, provider schemas and references.
+      - run: terraform init -backend=false
+      - run: terraform validate
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Check no secret values are committed
         run: |
-          if grep -rEn 'sk_(live|test)_[A-Za-z0-9]|service_role|SUPABASE_SERVICE_ROLE_KEY: *[^"'"'"' ]' \
-             --include='*.yaml' --include='*.yml' helm/ cert-manager/ namespaces/; then
+          if grep -rEn 'sk_(live|test)_[A-Za-z0-9]|service_role|dop_v1_[A-Za-z0-9]|SUPABASE_SERVICE_ROLE_KEY: *[^"'"'"' ]' \
+             --include='*.yaml' --include='*.yml' --include='*.tf' \
+             helm/ cert-manager/ namespaces/ terraform/; then
             echo "::error::A secret-looking value is committed to the infrastructure repo"
+            exit 1
+          fi
+
+      # Terraform state carries the cluster CA and the deploy tokens.
+      - name: Check no Terraform state or tfvars are committed
+        run: |
+          if git ls-files | grep -E '\.tfstate|\.terraform/|^terraform/terraform\.tfvars$'; then
+            echo "::error::Terraform state or tfvars committed -- these contain credentials"
             exit 1
           fi

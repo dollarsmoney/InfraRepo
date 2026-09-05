@@ -6,6 +6,21 @@ kubeconfig
 *-secret.yaml
 secrets.yaml
 
+# Terraform. State holds the cluster CA and the deploy ServiceAccount tokens.
+.terraform/
+.terraform.lock.hcl.bak
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
 charts/
 *.tgz
 .DS_Store

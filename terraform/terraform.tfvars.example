@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is gitignored.
+# The DigitalOcean token is NOT set here -- export it instead:
+#   export DIGITALOCEAN_TOKEN=dop_v1_...
+
+cluster_name = "marketplace"
+region       = "lon1"
+
+node_size  = "s-2vcpu-4gb"
+node_count = 2
+node_min   = 2
+node_max   = 4
+
+domain     = "kmdndd.name.ng"
+manage_dns = true
+acme_email = "itojedollars3@gmail.com"

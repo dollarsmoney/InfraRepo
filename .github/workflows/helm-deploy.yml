@@ -31,17 +31,20 @@ jobs:
         with:
           version: v3.16.2
 
+      # This secret is the only thing that decides which cluster and namespace
+      # this job deploys to. Terraform generates it (see terraform/outputs.tf).
       - name: Configure cluster access
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          NAMESPACE: ${{ inputs.environment }}
         run: |
           mkdir -p "$HOME/.kube"
           echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
-          kubectl cluster-info
-
-      - name: Ensure namespace
-        run: kubectl apply -f "namespaces/${{ inputs.environment }}.yaml"
+          # The credential is scoped to one namespace, so cluster-wide checks
+          # such as `kubectl cluster-info` are correctly forbidden.
+          kubectl -n "$NAMESPACE" get configmaps >/dev/null
+          echo "Authenticated against namespace $NAMESPACE"
 
       - name: Create GHCR pull secret
         env:
