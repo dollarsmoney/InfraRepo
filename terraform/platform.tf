@@ -55,40 +55,25 @@ resource "helm_release" "cert_manager" {
   ]
 }
 
-locals {
-  cluster_issuers = {
-    "letsencrypt-staging" = {
-      server = "https://acme-staging-v02.api.letsencrypt.org/directory"
-      secret = "letsencrypt-staging-account-key"
-    }
-    "letsencrypt-production" = {
-      server = "https://acme-v02.api.letsencrypt.org/directory"
-      secret = "letsencrypt-production-account-key"
-    }
-  }
-}
+# The two ClusterIssuers ship as a small local chart rather than through a
+# dedicated Kubernetes-manifest provider. Those providers resolve the resource
+# schema at plan time, so they cannot create a custom resource in the same run
+# that installs its CRD. The Helm provider defers to apply, so this works from
+# an empty account in one pass.
+#
+# Issuer names match ingress.clusterIssuer in the app's Helm values, so the
+# application chart needs no change.
+resource "helm_release" "cluster_issuers" {
+  name      = "cluster-issuers"
+  chart     = "${path.module}/charts/cluster-issuers"
+  namespace = helm_release.cert_manager.namespace
 
-# Names match ingress.clusterIssuer in the Helm values, so the chart needs no change.
-resource "kubectl_manifest" "cluster_issuer" {
-  for_each = local.cluster_issuers
-
-  yaml_body = yamlencode({
-    apiVersion = "cert-manager.io/v1"
-    kind       = "ClusterIssuer"
-    metadata   = { name = each.key }
-    spec = {
-      acme = {
-        server              = each.value.server
-        email               = var.acme_email
-        privateKeySecretRef = { name = each.value.secret }
-        solvers = [{
-          http01 = {
-            ingress = { ingressClassName = "nginx" }
-          }
-        }]
-      }
-    }
-  })
+  set = [
+    {
+      name  = "email"
+      value = var.acme_email
+    },
+  ]
 
   depends_on = [helm_release.cert_manager]
 }

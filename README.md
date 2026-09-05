@@ -114,10 +114,13 @@ only after Terraform has waited for DigitalOcean to assign its IP. That ordering
 matters: cert-manager solves an HTTP-01 challenge over port 80, so a name that
 does not yet resolve to the ingress controller cannot be issued a certificate.
 
-The one manual step is delegation — set the nameservers for `kmdndd.name.ng` to
-`ns1`, `ns2` and `ns3.digitalocean.com` at your `.ng` registrar. Set
-`manage_dns = false` if you would rather keep DNS elsewhere and point the records
-at `terraform output ingress_ip` yourself.
+The one manual step is delegation. `kmdndd.name.ng` is delegated to
+`nsa.whogohost.com` / `nsb.whogohost.com`; replace those in the WhoGoHost control
+panel with `ns1`, `ns2` and `ns3.digitalocean.com`. Until that is done the
+records exist on DigitalOcean's nameservers but resolve nowhere publicly, and
+cert-manager cannot complete an HTTP-01 challenge. Set `manage_dns = false` if
+you would rather keep DNS elsewhere and point the records at
+`terraform output ingress_ip` yourself.
 
 `name.ng` is a public suffix, so `kmdndd.name.ng` counts as its own registered
 domain for Let's Encrypt rate limiting — the six names share one bucket of 50

@@ -1,0 +1,11 @@
+# email is set by Terraform (see platform.tf).
+email: ''
+ingressClassName: nginx
+
+issuers:
+  letsencrypt-staging:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecret: letsencrypt-staging-account-key
+  letsencrypt-production:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecret: letsencrypt-production-account-key

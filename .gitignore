@@ -21,6 +21,13 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-charts/
+# Helm's vendored dependencies only. Must stay anchored: a bare "charts/"
+# would also swallow terraform/charts/, which is real source.
+/helm/marketplace/charts/
 *.tgz
+
+# Saved plan files can embed resource values
+tfplan
+*.tfplan
+
 .DS_Store

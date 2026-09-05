@@ -25,15 +25,28 @@ control plane is free.
    ```bash
    export DIGITALOCEAN_TOKEN=dop_v1_...
    ```
-2. **Delegate the domain to DigitalOcean.** At your `.ng` registrar, set the
-   nameservers for `kmdndd.name.ng` to:
+2. **Delegate the domain to DigitalOcean.** `kmdndd.name.ng` is currently
+   delegated to `nsa.whogohost.com` / `nsb.whogohost.com`. In the WhoGoHost
+   control panel, replace those nameservers with:
    ```
    ns1.digitalocean.com
    ns2.digitalocean.com
    ns3.digitalocean.com
    ```
-   Terraform manages the records inside the zone, not the delegation itself. Set
-   `manage_dns = false` to skip DNS entirely and wire records up by hand.
+   Terraform manages the records inside the zone, not the delegation itself —
+   until this is changed, the records exist on DigitalOcean's nameservers but
+   resolve nowhere publicly, and cert-manager cannot issue a certificate. Set
+   `manage_dns = false` to skip DNS entirely and wire records up by hand against
+   `terraform output ingress_ip`.
+
+3. A local Helm chart cache, for the two remote charts:
+   ```bash
+   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+   helm repo add jetstack https://charts.jetstack.io
+   helm repo update
+   ```
+   The Helm provider reads the local repository cache and fails at plan time with
+   `no cached repo found` if any configured repo has no index downloaded.
 
 ## Apply
 
@@ -113,10 +126,14 @@ run this.
 
 ## Notes
 
-- `kubernetes_manifest` is deliberately avoided. It resolves the resource schema
-  at plan time, so it cannot create a ClusterIssuer in the same run that installs
-  cert-manager's CRDs. `kubectl_manifest` applies server-side and has no such
-  constraint.
+- The two ClusterIssuers ship as a local chart in `charts/cluster-issuers/`
+  rather than through a Kubernetes-manifest provider. Both `kubernetes_manifest`
+  and `kubectl_manifest` resolve their configuration or schema at *plan* time,
+  before the cluster exists, so neither can create a custom resource in the same
+  run that installs its CRD. The Helm provider defers to apply, so a single
+  `terraform apply` works from an empty account.
+- Only HashiCorp-verified providers are used: `digitalocean`, `helm` and
+  `kubernetes`.
 - If a first apply ever fails because the Kubernetes provider was configured
   before the cluster existed, run
   `terraform apply -target=digitalocean_kubernetes_cluster.main` and then a full
