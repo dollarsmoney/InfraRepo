@@ -25,8 +25,9 @@ config:
   NODE_ENV: production
   SUPABASE_URL: https://gwwasgxuhoeowhswqooj.supabase.co
 ingress:
-  # Staging issuer avoids burning the Let's Encrypt production rate limit.
-  clusterIssuer: letsencrypt-staging
+  # Browsers block fetch() to a host with an untrusted cert, so dev needs a
+  # real certificate for the frontend to reach api.dev.*.
+  clusterIssuer: letsencrypt-production
   hosts:
     app: dev.kmdndd.name.ng
     api: api.dev.kmdndd.name.ng
