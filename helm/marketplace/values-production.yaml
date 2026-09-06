@@ -1,8 +1,7 @@
 environment: production
-
 backend:
   image:
-    tag: latest
+    tag: sha-ba0714b
   replicaCount: 3
   resources:
     requests:
@@ -11,10 +10,9 @@ backend:
     limits:
       cpu: 1000m
       memory: 1Gi
-
 frontend:
   image:
-    tag: latest
+    tag: sha-ba0714b
   replicaCount: 3
   resources:
     requests:
@@ -23,17 +21,14 @@ frontend:
     limits:
       cpu: 1000m
       memory: 1Gi
-
 config:
   NODE_ENV: production
   SUPABASE_URL: https://your-production-project.supabase.co
-
 ingress:
   clusterIssuer: letsencrypt-production
   hosts:
     app: kmdndd.name.ng
     api: api.kmdndd.name.ng
-
 # Spread replicas across nodes so a single node failure cannot take the app down.
 affinity:
   podAntiAffinity:
